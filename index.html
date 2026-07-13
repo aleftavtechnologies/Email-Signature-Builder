@@ -72,29 +72,10 @@
   .copy-btn:disabled{ background:#c9c3b4; color:#8a8371; cursor:not-allowed; }
   .copy-btn:disabled:hover{ background:#c9c3b4; }
   .toolbar-actions{ display:flex; align-items:center; gap:10px; }
-  .plan-badge{ font-size:11px; font-weight:700; letter-spacing:.04em; padding:5px 10px; border-radius:999px; text-transform:uppercase; }
-  .plan-badge.locked{ background:#fbe8e0; color:#b3502a; border:1px solid #f0c7ae; }
-  .plan-badge.unlocked{ background:#e3f3e6; color:#2c7a3c; border:1px solid #b9e2c2; }
-  .email-chrome{ position:relative; }
-  .watermark-flag{
-    position:absolute; top:10px; right:-34px; background:#b3502a; color:#fff;
-    font-size:10px; font-weight:700; letter-spacing:.06em; padding:4px 40px;
-    transform:rotate(35deg); box-shadow:0 1px 3px rgba(0,0,0,.2); pointer-events:none;
-    z-index:3;
-  }
-  .watermark-overlay{
-    position:absolute; inset:0; pointer-events:none; z-index:2;
-    overflow:hidden;
-    display:flex; flex-direction:column; align-items:center; justify-content:space-evenly;
-  }
-  .watermark-overlay span{
-    display:block; white-space:nowrap; transform:rotate(-28deg);
-    font-size:30px; font-weight:800; letter-spacing:.06em; color:rgba(179,80,42,.32);
-    text-transform:uppercase; user-select:none;
-  }
-  .no-select{ user-select:none; -webkit-user-select:none; -moz-user-select:none; }
-  .unlock-note{ font-size:12px; color:#8a5a2c; background:#fbf1e0; border:1px solid var(--gold-light); border-radius:6px; padding:10px 14px; margin:0 0 16px; text-align:center; }
-  .unlock-note.hidden{ display:none; }
+  .credit-badge{ font-size:11px; font-weight:700; letter-spacing:.04em; padding:5px 10px; border-radius:999px; text-transform:uppercase; background:#e3f3e6; color:#2c7a3c; border:1px solid #b9e2c2; }
+  .credit-badge.empty{ background:#fbe8e0; color:#b3502a; border-color:#f0c7ae; }
+  .limit-note{ font-size:12px; color:#8a5a2c; background:#fbf1e0; border:1px solid var(--gold-light); border-radius:6px; padding:10px 14px; margin:0 0 16px; text-align:center; }
+  .limit-note.hidden{ display:none; }
   .preview-body{
     padding:26px;
     background:
@@ -266,25 +247,17 @@
       <div class="preview-toolbar">
         <h2>Live preview</h2>
         <div class="toolbar-actions">
-          <span class="plan-badge locked" id="planBadge">Preview</span>
-          <button class="copy-btn" id="copyBtn" onclick="copySignature()" disabled title="Unlock to copy">Copy signature HTML</button>
+          <span class="credit-badge" id="creditBadge">3 free left</span>
+          <button class="copy-btn" id="copyBtn" onclick="copySignature()">Copy signature HTML</button>
         </div>
       </div>
       <div class="preview-body">
-        <div class="unlock-note" id="unlockNote">
-          <div>This is a locked preview. Purchase to unlock copying (and remove the watermark).</div>
-          <div id="paypal-button-container" style="max-width:260px; margin:12px auto 0;"></div>
-          <div id="paypalStatus" style="font-size:11px; color:#8a5a2c; margin-top:6px;"></div>
+        <div class="limit-note hidden" id="limitNote">
+          You've used all 3 free signatures on this browser. Copying is now turned off.
         </div>
         <div class="email-chrome">
-          <div class="watermark-overlay" id="watermarkOverlay">
-            <span>SAHASRA · UNLICENSED PREVIEW</span>
-            <span>SAHASRA · UNLICENSED PREVIEW</span>
-            <span>SAHASRA · UNLICENSED PREVIEW</span>
-          </div>
-          <div class="watermark-flag" id="watermarkFlag">PREVIEW</div>
           <div class="bar">New Message</div>
-          <div class="body no-select" id="previewBody">
+          <div class="body" id="previewBody">
             <div class="fake-msg">Hi team,<br><br>Please find the itinerary attached.<br><br>Best regards,</div>
             <div id="sig-container"></div>
           </div>
@@ -318,8 +291,6 @@ const offices = {
 
 const NAVY = "#2D3990";
 const GOLD = "#FBAF43";
-const UNLOCK_KEY = 'sahasra_unlock_token';
-let unlocked = false;
 const DEFAULT_AVATAR = "data:image/svg+xml;utf8," + encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#e3dcc9"/><circle cx="50" cy="40" r="18" fill="#fff"/><ellipse cx="50" cy="88" rx="30" ry="22" fill="#fff"/></svg>`
 );
@@ -476,13 +447,6 @@ function buildSignatureHTML(){
     </td>
   </tr>` : '';
 
-  const watermarkRow = isUnlocked() ? '' : `
-  <tr>
-    <td colspan="2" style="padding-top:10px; border-top:1px solid #eee; text-align:center;">
-      <span style="font-size:10px; color:#a9a29a; letter-spacing:.03em;">Made with Sahasra Signature Studio — unlicensed preview</span>
-    </td>
-  </tr>`;
-
   return `
 <table cellpadding="0" cellspacing="0" border="0" style="font-family:Segoe UI, Helvetica, Arial, sans-serif; border-collapse:collapse; max-width:560px;">
   <tr>
@@ -506,7 +470,6 @@ function buildSignatureHTML(){
     </td>
   </tr>
   ${bannerRow}
-  ${watermarkRow}
 </table>`;
 }
 
@@ -516,152 +479,60 @@ function render(){
   document.getElementById('photoPreview').src = photoSrc || DEFAULT_AVATAR;
 }
 
-// ---------------- Paywall ----------------
-function isUnlocked(){ return unlocked; }
+// ---------------- Free-tier limit (3 signatures, no payment) ----------------
+const LIMIT_KEY = 'sahasra_sig_count';
+const FREE_LIMIT = 3;
 
-function setUnlockedUI(state){
-  unlocked = state;
-  const badge = document.getElementById('planBadge');
+function getUsedCount(){
+  return parseInt(localStorage.getItem(LIMIT_KEY) || '0', 10);
+}
+
+function updateLimitUI(){
+  const used = getUsedCount();
+  const remaining = Math.max(FREE_LIMIT - used, 0);
+  const badge = document.getElementById('creditBadge');
   const copyBtn = document.getElementById('copyBtn');
-  const watermarkFlag = document.getElementById('watermarkFlag');
-  const watermarkOverlay = document.getElementById('watermarkOverlay');
-  const unlockNote = document.getElementById('unlockNote');
-  const previewBody = document.getElementById('previewBody');
-  if(state){
-    badge.textContent = 'Unlocked';
-    badge.classList.remove('locked');
-    badge.classList.add('unlocked');
-    watermarkFlag.style.display = 'none';
-    watermarkOverlay.style.display = 'none';
-    unlockNote.classList.add('hidden');
+  const limitNote = document.getElementById('limitNote');
+
+  if(remaining > 0){
+    badge.textContent = `${remaining} free left`;
+    badge.classList.remove('empty');
     copyBtn.disabled = false;
     copyBtn.title = '';
-    previewBody.classList.remove('no-select');
+    limitNote.classList.add('hidden');
   } else {
-    badge.textContent = 'Preview';
-    badge.classList.add('locked');
-    badge.classList.remove('unlocked');
-    watermarkFlag.style.display = 'block';
-    watermarkOverlay.style.display = 'flex';
-    unlockNote.classList.remove('hidden');
+    badge.textContent = 'Limit reached';
+    badge.classList.add('empty');
     copyBtn.disabled = true;
-    copyBtn.title = 'Unlock to copy';
-    previewBody.classList.add('no-select');
+    copyBtn.title = 'Free limit reached';
+    limitNote.classList.remove('hidden');
   }
-  render();
-}
-
-// block copy/cut of the preview text while locked, even via right-click / keyboard select-all
-document.getElementById('previewBody').addEventListener('copy', function(e){
-  if(!isUnlocked()){
-    e.preventDefault();
-    e.clipboardData.setData('text/plain', 'This is a locked preview. Please unlock (purchase) to copy your signature.');
-  }
-});
-document.getElementById('previewBody').addEventListener('contextmenu', function(e){
-  if(!isUnlocked()) e.preventDefault();
-});
-
-async function checkStoredToken(){
-  const token = localStorage.getItem(UNLOCK_KEY);
-  if(!token) return false;
-  try {
-    const resp = await fetch(`/api/check-token?token=${encodeURIComponent(token)}`);
-    const data = await resp.json();
-    if(data.valid) return true;
-    localStorage.removeItem(UNLOCK_KEY);
-  } catch(e){ /* network hiccup — don't wipe token on transient error */ return true; }
-  return false;
-}
-
-function paypalStatus(msg){
-  const el = document.getElementById('paypalStatus');
-  if(el) el.textContent = msg || '';
-}
-
-async function initPayPalButtons(){
-  const container = document.getElementById('paypal-button-container');
-  try {
-    const resp = await fetch('/api/paypal-config');
-    const cfg = await resp.json();
-    if(!cfg.configured){
-      paypalStatus('Payment setup pending — check back soon.');
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(cfg.clientId)}&currency=${encodeURIComponent(cfg.currency)}`;
-    script.onload = function(){
-      if(!window.paypal){
-        paypalStatus('Could not load PayPal. Please refresh and try again.');
-        return;
-      }
-      window.paypal.Buttons({
-        style: { layout: 'horizontal', height: 40, color: 'blue', shape: 'rect', label: 'pay' },
-        createOrder: async function(){
-          paypalStatus('');
-          const r = await fetch('/api/paypal-create-order', { method: 'POST' });
-          const d = await r.json();
-          if(!d.id){ paypalStatus(d.error || 'Could not start PayPal checkout.'); throw new Error('no order id'); }
-          return d.id;
-        },
-        onApprove: async function(data){
-          paypalStatus('Confirming your payment…');
-          try {
-            const r = await fetch('/api/paypal-capture-order', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ orderID: data.orderID }),
-            });
-            const result = await r.json();
-            if(result.paid && result.token){
-              localStorage.setItem(UNLOCK_KEY, result.token);
-              setUnlockedUI(true);
-              paypalStatus('');
-            } else {
-              paypalStatus('Payment could not be verified. Please contact support.');
-            }
-          } catch(e){
-            paypalStatus('Something went wrong confirming your payment.');
-          }
-        },
-        onCancel: function(){ paypalStatus('Payment cancelled.'); },
-        onError: function(err){
-          console.error('PayPal error:', err);
-          paypalStatus('PayPal ran into a problem. Please try again.');
-        },
-      }).render('#paypal-button-container');
-    };
-    document.body.appendChild(script);
-  } catch(e){
-    paypalStatus('Could not reach the payment server.');
-  }
-}
-
-async function initPaywall(){
-  const validStored = await checkStoredToken();
-  setUnlockedUI(validStored);
-  if(!validStored) initPayPalButtons();
 }
 
 function copySignature(){
-  if(!isUnlocked()){
-    alert('This is a locked preview. Use the PayPal button below the preview to purchase and unlock copying.');
+  if(getUsedCount() >= FREE_LIMIT){
+    alert("You've used all 3 free signatures on this browser. Copying is now turned off.");
     return;
   }
   const html = buildSignatureHTML();
   const btn = document.getElementById('copyBtn');
+  function markUsed(){
+    localStorage.setItem(LIMIT_KEY, String(getUsedCount() + 1));
+    updateLimitUI();
+  }
   try {
     const blob = new Blob([html], {type:'text/html'});
     const item = new ClipboardItem({'text/html': blob, 'text/plain': new Blob([html], {type:'text/plain'})});
     navigator.clipboard.write([item]).then(()=>{
       btn.textContent = "Copied ✓";
       btn.classList.add('copied');
+      markUsed();
       setTimeout(()=>{ btn.textContent = "Copy signature HTML"; btn.classList.remove('copied'); }, 1800);
     });
   } catch(e){
     navigator.clipboard.writeText(html);
     btn.textContent = "Copied as text ✓";
+    markUsed();
     setTimeout(()=>{ btn.textContent = "Copy signature HTML"; }, 1800);
   }
 }
@@ -669,7 +540,7 @@ function copySignature(){
 document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', render));
 document.querySelectorAll('input[type=checkbox], input[type=radio]').forEach(el => el.addEventListener('change', render));
 render();
-initPaywall();
+updateLimitUI();
 </script>
 </body>
 </html>
