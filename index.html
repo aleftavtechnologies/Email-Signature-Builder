@@ -140,6 +140,16 @@
       </div>
 
       <div class="card">
+        <h2>Signature style</h2>
+        <label for="template">Choose a layout</label>
+        <select id="template">
+          <option value="classic" selected>Classic — photo &amp; logo left, details right</option>
+          <option value="gradient">Gradient Banner — bold color banner up top</option>
+        </select>
+        <p class="hint">Both styles use your Sahasra World branding, logo, and colors automatically.</p>
+      </div>
+
+      <div class="card">
         <h2>Profile photo <span class="toggle-label">optional</span></h2>
         <div class="switch-row">
           <span>Include photo</span>
@@ -415,7 +425,7 @@ function socialRow(){
   return icons.join('');
 }
 
-function buildSignatureHTML(){
+function buildClassicHTML(){
   const name = document.getElementById('name').value.trim() || "Your Name";
   const title = document.getElementById('title').value.trim() || "Job Title";
   const officeKey = document.getElementById('office').value;
@@ -471,6 +481,85 @@ function buildSignatureHTML(){
   </tr>
   ${bannerRow}
 </table>`;
+}
+
+function bareIconRow(){
+  const icons = [];
+  const items = [
+    {on:'fbOn', url:'fbUrl', icon:ICONS.fb, label:'Facebook'},
+    {on:'igOn', url:'igUrl', icon:ICONS.ig, label:'Instagram'},
+    {on:'ytOn', url:'ytUrl', icon:ICONS.yt, label:'YouTube'},
+    {on:'liOn', url:'liUrl', icon:ICONS.li, label:'LinkedIn'},
+    {on:'webOn', url:'webUrl', icon:ICONS.web, label:'Website'},
+  ];
+  items.forEach(it => {
+    const enabled = document.getElementById(it.on).checked;
+    const url = document.getElementById(it.url).value.trim();
+    if(enabled && url){
+      icons.push(`<a href="${escapeHtml(url)}" style="text-decoration:none; margin-right:9px;"><img src="${it.icon}" width="16" height="16" alt="${it.label}" style="display:inline-block; vertical-align:middle; border-radius:50%; filter:brightness(0) invert(1);"></a>`);
+    }
+  });
+  return icons.join('');
+}
+
+function buildGradientBannerHTML(){
+  const name = document.getElementById('name').value.trim() || "Your Name";
+  const title = document.getElementById('title').value.trim() || "Job Title";
+  const officeKey = document.getElementById('office').value;
+  const office = offices[officeKey];
+  const phone = document.getElementById('phone').value.trim();
+  const whatsapp = document.getElementById('whatsapp').value.trim();
+  const email = document.getElementById('email').value.trim();
+
+  const photoSrc = getPhotoSrc();
+  const logoSrc = getLogoSrc();
+  const bareSocials = bareIconRow();
+
+  const nameParts = name.split(' ');
+  const firstName = nameParts[0] || '';
+  const lastName = nameParts.slice(1).join(' ');
+
+  const photoBlock = photoSrc ? `
+      <img src="${photoSrc}" width="64" height="64" alt="${escapeHtml(name)}" style="display:block; border-radius:50%; object-fit:cover; border:3px solid #ffffff; width:64px; height:64px;">` : '';
+
+  return `
+<table cellpadding="0" cellspacing="0" border="0" style="font-family:Segoe UI, Helvetica, Arial, sans-serif; border-collapse:collapse; max-width:520px; overflow:hidden; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,.08);">
+  <tr>
+    <td style="background:#ffffff; padding:18px 22px; vertical-align:top;">
+      <div style="font-size:19px; line-height:1.3;">
+        <span style="font-weight:800; color:${NAVY};">${escapeHtml(firstName)}</span>
+        <span style="color:${GOLD}; padding:0 7px; font-weight:400;">|</span>
+        <span style="font-weight:800; color:#9a9a9a;">${escapeHtml(lastName)}</span>
+      </div>
+      <div style="font-size:12.5px; color:#666; margin-top:2px;">${escapeHtml(title)}</div>
+      <table cellpadding="0" cellspacing="0" border="0" style="font-size:12px; color:#444; margin-top:12px;">
+        <tr><td style="padding:2px 0; color:${NAVY}; font-weight:600; width:60px;">Phone</td><td style="padding:2px 0;"><a href="tel:${phone.replace(/\s+/g,'')}" style="color:#333; text-decoration:none;">${escapeHtml(phone)}</a></td></tr>
+        <tr><td style="padding:2px 0; color:${NAVY}; font-weight:600;">WhatsApp</td><td style="padding:2px 0;"><a href="https://wa.me/${whatsapp.replace(/[^0-9]/g,'')}" style="color:#333; text-decoration:none;">${escapeHtml(whatsapp)}</a></td></tr>
+        <tr><td style="padding:2px 0; color:${NAVY}; font-weight:600;">Email</td><td style="padding:2px 0;"><a href="mailto:${escapeHtml(email)}" style="color:#333; text-decoration:none;">${escapeHtml(email)}</a></td></tr>
+      </table>
+      <div style="font-size:11px; color:#8a8371; margin-top:6px;">${escapeHtml(office.address)}</div>
+    </td>
+    <td style="background:#ffffff; padding:18px 22px; vertical-align:middle; text-align:right; width:90px;">
+      ${photoBlock}
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" style="background-color:${NAVY}; background-image:linear-gradient(115deg, #14141a 0%, ${NAVY} 55%, ${NAVY} 100%); padding:18px 22px;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+        <td style="vertical-align:middle;"><img src="${logoSrc}" width="90" alt="Sahasra World" style="display:block; max-height:30px; width:auto; filter:brightness(0) invert(1);"></td>
+        <td style="vertical-align:middle; text-align:right;">
+          <div style="color:#ffffff; font-weight:800; font-size:13px; line-height:1.3;">Journeys Beyond<br>the Ordinary</div>
+        </td>
+      </tr></table>
+      ${bareSocials ? `<div style="margin-top:12px;">${bareSocials}</div>` : ''}
+    </td>
+  </tr>
+</table>`;
+}
+
+function buildSignatureHTML(){
+  const template = document.getElementById('template').value;
+  return template === 'gradient' ? buildGradientBannerHTML() : buildClassicHTML();
 }
 
 function render(){
